@@ -1,6 +1,8 @@
 name: Configure Issue and PR labels
 
 on:
+  issues:
+    types: [opened, reopened]
   issue_comment:
     types: [created]
   pull_request_review_comment:
@@ -10,22 +12,11 @@ on:
 
 jobs:
   applyNeedsAttentionLabel:
-    name: Apply Needs Attention Label
+    name: Apply Needs Attention
+    permissions:
+      contents: read # for actions/checkout to fetch code
+      issues: write # for hramos/needs-attention to label issues
     runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-      - name: Apply Needs Attention Label
-        uses: hramos/needs-attention@v2.0.0
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          response-required-label: "waiting-for-response"
-          needs-attention-label: "needs-triage"
-
-  applyPRLabel:
-    name: Apply Needs Attention for PRs
-    runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
       - name: Label PRs for Triage
@@ -34,3 +25,6 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           response-required-label: "waiting-for-author-feedback"
           needs-attention-label: "needs-team-review"
+        id: needs-attention
+      - name: Result
+        run: echo '${{ steps.needs-attention.outputs.result }}'
