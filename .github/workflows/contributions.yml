@@ -1,4 +1,4 @@
-name: Issue and PR labels
+name: Configure Issue and PR labels
 
 on:
   issue_comment:
