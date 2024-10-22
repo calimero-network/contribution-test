@@ -20,15 +20,15 @@ jobs:
             // Check if it's an issue or a PR
             if (context.eventName === 'issues') {
               // Add label to issue
-              await github.issues.addLabels({
+              await github.rest.issues.addLabels({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                issue_number: context.payload.issue.number,
+                issue_number: context.issue.number,
                 labels: ['needs-team-review']
               });
             } else if (context.eventName === 'pull_request') {
               // Add label to PR
-              await github.issues.addLabels({
+              await github.rest.issues.addLabels({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: context.payload.pull_request.number,

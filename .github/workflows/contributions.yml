@@ -1,14 +1,10 @@
 name: Configure Issue and PR labels
 
 on:
-  issues:
-    types: [opened, reopened]
   issue_comment:
     types: [created]
   pull_request_review_comment:
     types: [created]
-  pull_request:
-    types: [opened, reopened]
 
 jobs:
   applyNeedsAttentionLabel:
