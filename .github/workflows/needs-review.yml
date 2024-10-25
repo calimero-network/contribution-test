@@ -1,0 +1,105 @@
+name: Check PRs for Review Inactivity
+
+on:
+  schedule:
+    - cron: "0 14 * * *" # Runs every hour to check for inactivity.
+  workflow_dispatch:
+
+jobs:
+  check-prs:
+    runs-on: ubuntu-latest
+    outputs:
+      pr_list: ${{ steps.check_needs_review.outputs.pr_list }}
+      pr_number: ${{ steps.check_needs_review.outputs.pr_number }}
+      pr_title: ${{ steps.check_needs_review.outputs.pr_title }}
+      reviewers: ${{ steps.check_needs_review.outputs.reviewers }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set current day of the week
+        run: echo "DAY_OF_WEEK=$(date +'%u')" >> $GITHUB_ENV
+
+      - name: Check for needs-review label and inactivity
+        id: check_needs_review
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Check if it's a working day (1 = Monday, 5 = Friday)
+          if [[ "$DAY_OF_WEEK" -ge 6 ]]; then
+            echo "Not a working day. Skipping notification."
+            exit 0
+          fi
+
+          # Define inactivity threshold for 5 minutes in seconds
+          inactivity_threshold=$((5 * 60)) # 5 minutes in seconds
+          current_time=$(date +%s)
+
+          # Get list of pull requests with the `needs-team-review` label
+          prs=$(gh pr list --label "needs-team-review" --json number,title,updatedAt,reviewRequests)
+
+          # Initialize variables for environment export
+          pr_list=""
+          pr_number=""
+          pr_title=""
+          reviewers=""
+
+          echo "PRs with 'needs-team-review' label: $(echo "${prs}" | jq -r 'length')"
+
+          # Loop through PRs and check inactivity
+          for row in $(echo "${prs}" | jq -r '.[] | @base64'); do
+            _jq() {
+              echo "${row}" | base64 --decode | jq -r "${1}"
+            }
+
+            pr_updated_at=$(_jq '.updatedAt')
+            pr_number=$(_jq '.number')
+            pr_title=$(_jq '.title')
+            reviewers=$(_jq '.reviewRequests | map(.requestedReviewer.login) | join(", ")')
+
+            echo "Checking PR #${pr_number} - ${pr_title} for inactivity."
+
+            # Convert PR's `updatedAt` to Unix timestamp
+            pr_updated_timestamp=$(date -d "$pr_updated_at" +%s)
+            time_difference=$((current_time - pr_updated_timestamp))
+
+            echo "Time difference: ${time_difference} seconds"
+
+            # Check if inactivity threshold is exceeded
+            if [[ $time_difference -gt 10 ]]; then
+              echo "PR #${pr_number} - ${pr_title} is inactive."
+              pr_list=true
+              echo "pr_number=${pr_number}" >> $GITHUB_OUTPUT
+              echo "pr_title=${pr_title}" >> $GITHUB_OUTPUT
+              echo "reviewers=${reviewers}" >> $GITHUB_OUTPUT
+              break
+            fi
+          done
+
+          if [[ -z "$pr_list" ]]; then
+            echo "No PRs need action."
+            exit 0
+          fi
+
+          echo "pr_list=${pr_list}" >> $GITHUB_OUTPUT
+
+  notify-slack:
+    runs-on: ubuntu-latest
+    needs: [check-prs]
+    if: needs.check-prs.outputs.pr_list == 'true'
+    steps:
+      - name: Notify Inactive PRs on Slack
+        uses: "ravsamhq/notify-slack-action@2.5.0"
+        with:
+          status: failure
+          notification_title: "PRs Pending Review"
+          message_format: |
+            *PR #${{ needs.check-prs.outputs.pr_number }} - ${{ needs.check-prs.outputs.pr_title }}* needs review.
+            <% if reviewers -%>
+              Reviewers: *${{ needs.check-prs.outputs.reviewers }}*
+            <% else -%>
+              No reviewers assigned. Notifying channel.
+            <% end %>
+          footer: "Linked Repo <${{ github.server_url }}/${{ github.repository }}|${{ github.repository }}> | <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View trigger>"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.EXTERNAL_CONTRIBUTION_SLACK }}
