@@ -14,6 +14,9 @@ jobs:
       contents: read # for actions/checkout to fetch code
       issues: write # for hramos/needs-attention to label issues
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Apply Needs Attention Label
         id: needs-attention
         uses: ./.github/actions/contributions

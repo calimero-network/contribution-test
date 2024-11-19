@@ -17,9 +17,6 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
     - name: Apply Needs Attention Label
       uses: hramos/needs-attention@v2.0.0
       with:
